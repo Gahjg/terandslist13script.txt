@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>WinGo Predictor – Size Fuzzy Only</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+:root {
+  --bg:#1c1e2c; --panel:#232745; --blur:#212244af;
+  --glow1:#83b8ff; --glow2:#b088ed; --accent:#ffcc25;
+  --ok:#48fa81; --bad:#ff5e76; --ink:#e6ecff; --muted:#9bb0ff;
+}
+body {margin:0; background:var(--bg); color:var(--ink); font-family:system-ui,sans-serif;}
+.main {max-width:430px; margin:22px auto; background:var(--panel); border-radius:18px; box-shadow:0 8px 28px #0006,0 1.5px 0 0 var(--glow1) inset;
+  padding:0; overflow:hidden; border:1.5px solid #fff2; position:relative;}
+.header {display:flex; align-items:center; justify-content:space-between; padding:14px 20px; background:var(--blur);backdrop-filter:blur(5px);}
+.logo {font-weight:600; font-size:20px; letter-spacing:.2px; display:flex; align-items:center;}
+.logo img{width:28px;margin-right:11px;}
+.mode {padding:2px 10px; border-radius:9px; font-size:15px; font-weight:600;}
+.mode.logic {background:rgba(149,205,255,.17);color:#6ac8ff;}
+.mode.human {background:rgba(190,187,255,.18);color:var(--glow2);}
+.mode.idle {background:#242647;color:var(--muted);}
+.settbtn {background:transparent; border:none; color:var(--accent);font-size:21px; cursor:pointer;}
+.pred-output {background:linear-gradient(120deg,#232745,#2c345c 90%); text-align:center; font-size:22px; font-weight:600; padding:18px 0 6px;color:var(--accent);}
+.pred-log {height:320px;overflow:auto;background:rgba(26,29,37,.92);padding:11px 14px;font-size:15.5px;line-height:1.48;border-radius:0 0 14px 14px; margin-bottom:5px;white-space:pre-wrap;}
+.pred-log .row{margin-bottom:8px;}
+.pred-log .win{color:var(--ok);}
+.pred-log .loss{color:var(--bad);}
+.pred-log .info{color:var(--glow1);}
+.pred-log .warn{color:var(--accent);}
+.pred-log .head{font-weight:600;}
+.controlbar{display:flex;gap:12px;justify-content:center;align-items:center;padding:13px 0 14px;}
+.controlbar button{flex:1;background:linear-gradient(98deg,#232745,#2d4972 88%); color:var(--ink); border:none; border-radius:12px; padding:12px 0; font-size:16px;
+font-weight:600;box-shadow:0 2px 8px #0004; cursor:pointer; transition:.1s;}
+.controlbar button:active{background:linear-gradient(98deg,#314c70,#232745 88%);}
+.statsbar{display:flex; gap:10px; align-items:center; justify-content:right;padding:2px 19px 5px;}
+.statsbar .stat{font-size:13.5px;}
+.statsbar .stat.win {color:var(--ok);}
+.statsbar .stat.loss{color:var(--bad);}
+.loader{display:inline-block;width:22px;height:22px;border:3px solid #fff3;border-right:3px solid var(--glow1);border-radius:50%;animation:spin .8s linear infinite;margin-right:12px;}
+@keyframes spin{100%{transform:rotate(360deg);}}
+.settings{display:none;position:absolute;top:0;left:0;width:100%;height:100%;background:#222942ee;backdrop-filter:blur(5px);z-index:29;flex-direction:column;}
+.settings.visible{display:flex;}
+.setpanel{margin:auto;padding:23px 16px 8px;width:100%;}
+.setpanel label{display:block;margin:0 0 6.5px 2px;color:var(--muted);}
+.setpanel input[type="text"]{width:100%;padding:8px 9px;border-radius:7px;border:1px solid #342c4a;background:#151a2a;color:var(--ink);margin-bottom:13px;}
+.setpanel .savebtn{width:100%;margin-top:4px;padding:12px 0;font-size:16px;font-weight:600;background:var(--glow2);color:#241e22;border-radius:9px;border:none;cursor:pointer;}
+.setpanel .closebtn{margin-top:15px;background:none;color:var(--accent);border:none;display:block;text-align:center;width:100%;font-size:14.5px;}
+.smallmuted{color:var(--muted);font-size:12px;display:block;margin-top:4px;text-align:center;}
+</style>
+</head>
+<body>
+<div class="main">
+  <div class="header">
+    <div class="logo"><img src="https://cdn-icons-png.flaticon.com/512/453/453186.png" alt="" />WinGo Predictor</div>
+    <span id="mode" class="mode idle">IDLE</span>
+    <button class="settbtn" onclick="document.querySelector('.settings').classList.add('visible')">&#9881;</button>
+  </div>
+  <div style="text-align:center;">
+    <span id="output" class="pred-output">Prediction: <i>---</i></span>
+    <span class="smallmuted" id="suboutput"></span>
+  </div>
+  <div class="statsbar">
+    <span class="stat win" id="wincount">Win: 0</span>
+    <span class="stat loss" id="losscount">Loss: 0</span>
+  </div>
+  <div class="pred-log" id="log">
+    <div style="color:var(--muted)">Ready for predictions. Press START!</div>
+  </div>
+  <div class="controlbar">
+    <button id="startbtn">Start</button>
+    <button id="stopbtn">Stop</button>
+    <button id="clearbtn">Clear</button>
+  </div>
+  <div class="settings">
+    <div class="setpanel">
+      <label>API URL</label>
+      <input type="text" id="apiurl" value="https://draw.ar-lottery01.com/WinGo/WinGo_1M/GetHistoryIssuePage.json"/>
+      <label>Patterns URL</label>
+      <input type="text" id="patternurl" value="https://raw.githubusercontent.com/Gahjg/terandslist13.txt/refs/heads/main/terandslist13.txt"/>
+      <label>Telegram Token</label>
+      <input type="text" id="tgtoken" value=""/>
+      <label>Chat ID</label>
+      <input type="text" id="tgchat" value=""/>
+      <button class="savebtn" onclick="saveSettings()">✔️ Save Settings</button>
+      <button class="closebtn" onclick="document.querySelector('.settings').classList.remove('visible')">Close</button>
+    </div>
+  </div>
+</div>
+<script>
+let running = false, mode='idle', wins=0, losses=0, matchIndex = 0;
+const $log=document.getElementById('log'), $output=document.getElementById('output'), $mode=document.getElementById('mode');
+const $wincount=document.getElementById('wincount'), $losscount=document.getElementById('losscount'), $sub=document.getElementById('suboutput');
+
+function log(msg,cls=''){const div=document.createElement('div');div.className='row '+cls;div.innerHTML=msg; $log.appendChild(div);$log.scrollTop=$log.scrollHeight;}
+function setMode(m){mode=m; $mode.textContent=m.toUpperCase();$mode.className='mode '+(m==='logic'?'logic':m==='human'?'human':'idle');}
+function clearLog(){$log.innerHTML='<div style="color:var(--muted)">Ready for predictions. Press START!</div>'; $output.innerHTML='Prediction: <i>---</i>'; $sub.textContent=''; wins=losses=0; $wincount.textContent='Win: 0'; $losscount.textContent='Loss: 0';}
+function saveSettings(){document.querySelector('.settings').classList.remove('visible');localStorage.setItem('wapi',document.getElementById('apiurl').value.trim());localStorage.setItem('wpat',document.getElementById('patternurl').value.trim());}
+function showLoader(msg=''){ $output.innerHTML='<span class="loader"></span> <i>'+msg+'</i>'; $sub.textContent=''; }
+function setWinLoss(win){ if(win){ wins++; $wincount.textContent='Win: '+wins; } else { losses++; $losscount.textContent='Loss: '+losses;} }
+
+let stopController = null;
+const MATCH_LENGTHS = [6,7,8,9];
+const toSize = n => (Number(n)<=4?'small':'big');
+function seqStr(arr){ return arr.join('-'); }
+function hashId(s){let h=0; for(let i=0;i<s.length;i++){ h=((h<<5)-h + s.charCodeAt(i))|0; } return (''+Math.abs(h%1e9)).padStart(9,'0');}
+function fuzzyCompare(currentSeq, patternSeq){
+  const a = currentSeq.split('-');
+  const b = patternSeq.split('-');
+  const L = a.length;
+  let score = 0, lines = [];
+  for(let i=0;i<L;i++){
+    const ok = (a[i]===b[i]);
+    if(ok) score += 2;
+    lines.push(`   ${i+1}) ${a[i]} ${ok?'==':'!='} ${b[i]} ${ok?'✅ Exact Match +2':'❌ Mismatch +0'}`);
+  }
+  return {score, lines};
+}
+
+async function runPredict(){
+  running=true; setMode('logic'); clearLog(); showLoader('Loading data...');
+  const apiUrl = document.getElementById('apiurl').value.trim() || localStorage.getItem('wapi') || '';
+  const patternsUrl = document.getElementById('patternurl').value.trim() || localStorage.getItem('wpat') || '';
+  let allResults=[], patternLines=[];
+  stopController = new AbortController(); const signal = stopController.signal;
+
+  try{
+    let presp = await fetch(patternsUrl); let ptxt = await presp.text();
+    patternLines = ptxt.split('\n').map(x=>x.trim()).filter(x=>x && x.includes('->'));
+    showLoader('Getting live data...');
+    let lastCheckedIssue = null;
+
+    while(running && !signal.aborted){
+      const resp = await fetch(apiUrl); const jsn = await resp.json();
+      const items = (jsn?.data?.list||[]).slice(0,50).reverse();
+      allResults = items.map(o=>({issue:(o.issueNumber??o.issue)+'', number:o.number, size:toSize(o.number)}));
+      if(allResults.length < Math.max(...MATCH_LENGTHS)+1){ showLoader('Not enough data!'); break; }
+
+      const L = MATCH_LENGTHS[matchIndex];
+      const curSeq = seqStr(allResults.slice(-L).map(r=>r.size));
+      let sizeBest = {score:-1, len:L, next:'small', fileId:'', dispSeq:'', breakdown:[]};
+
+      for(const line of patternLines){
+        const parts = line.split('|');
+        const raw = (parts[2]||parts[0]||'').toLowerCase();
+        const seqPart = raw.split('->')[0].trim();
+        const nextPart = raw.split('->')[1]?.trim();
+        const pSeqArr = seqPart.split('-');
+        if(pSeqArr.length < L) continue;
+        const pattSeq = pSeqArr.slice(0,L).join('-');
+        const cmp = fuzzyCompare(curSeq, pattSeq);
+        if(cmp.score > sizeBest.score){
+          sizeBest.score = cmp.score;
+          sizeBest.next = (pSeqArr[L] || nextPart || 'small').trim();
+          sizeBest.fileId = (parts[0] && /^\d/.test(parts[0])) ? parts[0].trim() : hashId(line);
+          sizeBest.dispSeq = pattSeq;
+          sizeBest.breakdown = cmp.lines;
+        }
+      }
+
+      const lastIssue = allResults[allResults.length-1].issue;
+      const sizePred = (sizeBest.next==='big' || sizeBest.next==='small') ? sizeBest.next : (sizeBest.next.includes('big')?'big':'small');
+
+      $output.innerHTML = `Prediction: <b>${sizePred.toUpperCase()}</b> (SIZE)`;
+      $sub.textContent = `Size[L=${sizeBest.len}] Score=${sizeBest.score}`;
+
+      log(
+`🎯 (Logic Mode) → [LEN=${sizeBest.len}] Best Fuzzy Match: ${sizeBest.dispSeq} (Score: ${sizeBest.score})
+${sizeBest.breakdown.join('\n')}
+📊 Sequence/File ID: ${sizeBest.fileId}
+— Next(Size): ${sizePred.toUpperCase()}`,
+      'info');
+
+      let current_issue = lastIssue;
+      let found=false, tries=0;
+      while(!found && !signal.aborted){
+        await new Promise(r=>setTimeout(r,1500));
+        let r=await fetch(apiUrl), j=await r.json();
+        let ni=(j?.data?.list||[])[0]?.issueNumber+'';
+        if(ni && ni!==current_issue){found=ni;}
+        tries++; if(tries>40)break;
+      }
+
+      if(found && running && !signal.aborted){
+        const fres = await fetch(apiUrl); const fjs = await fres.json();
+        const newr = (fjs?.data?.list||[])[0];
+        const actualSize = toSize(newr.number);
+        const sizeWin = (sizePred===actualSize);
+        setWinLoss(sizeWin);
+        log(`Result: SIZE=${actualSize.toUpperCase()} ${sizeWin?'✔️':'❌'}`, sizeWin?'win':'loss');
+        $output.innerHTML = `Prediction: <b>${sizePred.toUpperCase()}</b> ${sizeWin?'✔️':'❌'} (SIZE)`;
+      }
+
+      matchIndex = (matchIndex + 1) % MATCH_LENGTHS.length;
+    }
+  }catch(e){
+    log('Error: '+(e?.message||e),'loss'); showLoader('Error!');
+  }
+  running=false; setMode('idle');
+}
+
+document.getElementById('startbtn').onclick = function(){ if(!running){runPredict();}};
+document.getElementById('stopbtn').onclick = function(){ running=false; if(stopController) stopController.abort(); setMode('idle'); log('[Stopped]','warn'); }
+document.getElementById('clearbtn').onclick = function(){ clearLog(); }
+window.onload=function(){
+  if(localStorage.getItem('wapi'))document.getElementById('apiurl').value=localStorage.getItem('wapi');
+  if(localStorage.getItem('wpat'))document.getElementById('patternurl').value=localStorage.getItem('wpat');
+}
+</script>
+</body>
+</html>
